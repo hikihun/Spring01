@@ -3,37 +3,48 @@ package com.zerobase.convpay.service;
 import com.zerobase.convpay.dto.*;
 import com.zerobase.convpay.type.*;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
 public class ConveniencePayService {
-    private final MoneyAdapter moneyAdapter = new MoneyAdapter();
-    private final CardAdapter cardAdapter = new CardAdapter();
+    //    private final MoneyAdapter moneyAdapter = new MoneyAdapter();
+//    private final CardAdapter cardAdapter = new CardAdapter();
+    private final Map<PayMethodType, PaymentInterface> paymentInterfaceMap =
+            new HashMap<>();
+    private final DiscountInterface discountInterface;
+//    private final DiscountInterface discountInterface = new DiscountByPayMethod();
+//    private final DiscountInterface discountInterface = new DiscountByConvenience();
+
+
+    public ConveniencePayService(Set<PaymentInterface> paymentInterfaceSet,
+                                 DiscountInterface discountInterface) {
+        paymentInterfaceSet.forEach(
+                paymentInterface -> paymentInterfaceMap.put(
+                        paymentInterface.getPayMethodType(),
+                        paymentInterface
+                )
+        );
+
+        this.discountInterface = discountInterface;
+    }
 
     public PayResponse pay(PayRequest payRequest) {
-        PaymentInterface paymentInterface;
+        PaymentInterface paymentInterface = paymentInterfaceMap.get(payRequest.getPayMethodType());
 
-        if (payRequest.getPayMethodType() == PayMethodType.CARD) {
-            paymentInterface = cardAdapter;
-        } else {
-            paymentInterface = moneyAdapter;
-        }
-
-        PaymentResult payment = paymentInterface.payment(payRequest.getPayAmount());
+        Integer discountAmount = discountInterface.getDiscountedAmount(payRequest);
+        PaymentResult payment = paymentInterface.payment(discountAmount);
 
         if (payment == PaymentResult.PAYMENT_FAIL) {
             return new PayResponse(PayResult.FAIL, 0);
         }
 
         // Success Case(Only one)
-        return new PayResponse(PayResult.SUCCESS, payRequest.getPayAmount());
+        return new PayResponse(PayResult.SUCCESS, discountAmount);
     }
 
     public PayCancelResponse payCancel(PayCancelRequest payCancelRequest) {
-        PaymentInterface paymentInterface;
-
-        if (payCancelRequest.getPayMethodType() == PayMethodType.CARD) {
-            paymentInterface = cardAdapter;
-        } else {
-            paymentInterface = moneyAdapter;
-        }
+        PaymentInterface paymentInterface = paymentInterfaceMap.get(payCancelRequest.getPayMethodType());
 
         CancelPaymentResult cancelPaymentResult = paymentInterface.cancelPayment(payCancelRequest.getPayCancelAmount());
 
